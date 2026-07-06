@@ -1,0 +1,17 @@
+{
+  "configurations": [
+    {
+      "name": "Linux",
+      "compilerPath": "/usr/bin/g++",
+      "intelliSenseMode": "linux-gcc-x64",
+      "cppStandard": "c++17",
+      "includePath": [
+        "${workspaceFolder}/**",
+        "/opt/ros/jazzy/include/**",
+        "${workspaceFolder}/install/**",
+        "${workspaceFolder}/src/**"
+      ]
+    }
+  ],
+  "version": 4
+}
