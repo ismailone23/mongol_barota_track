@@ -1,4 +1,4 @@
-## only the `src/communication` is used for the arc/rscp 
+## only the `src/rscpcoms` is used for the arc/rscp 
 
 we need only the header and the cpp file of rscp.
 
