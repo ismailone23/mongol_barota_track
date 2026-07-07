@@ -10,57 +10,80 @@ find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(Protobuf REQUIRED)
 
-# ===========================
-# Stage Publisher
-# ===========================
-add_executable(stage_pub
-  src/stage_pub.cpp
+
+set(RSCP_PROTO_SOURCE
   src/rscp.pb.cc
 )
 
-ament_target_dependencies(stage_pub
-  rclcpp
-  std_msgs
-)
-
-target_include_directories(stage_pub PRIVATE
-  ${Protobuf_INCLUDE_DIRS}
+set(RSCP_INCLUDE_DIR
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(stage_pub
-  protobuf::libprotobuf
+function(add_rscp_node TARGET_NAME SOURCE_FILE)
+
+  add_executable(${TARGET_NAME}
+    ${SOURCE_FILE}
+    ${RSCP_PROTO_SOURCE}
+  )
+
+  ament_target_dependencies(${TARGET_NAME}
+    rclcpp
+    std_msgs
+  )
+
+  target_include_directories(${TARGET_NAME} PRIVATE
+    ${Protobuf_INCLUDE_DIRS}
+    ${RSCP_INCLUDE_DIR}
+  )
+
+  target_link_libraries(${TARGET_NAME}
+    protobuf::libprotobuf
+  )
+
+endfunction()
+add_rscp_node(cm
+  src/cm.cpp
 )
 
-# ===========================
-# Host Module
-# ===========================
-add_executable(hm
-  src/hm.cpp
-  src/rscp.pb.cc
+add_rscp_node(hm src/hm.cpp)
+
+add_rscp_node(stage_node
+  src/stage.cpp
 )
 
-ament_target_dependencies(hm
-  rclcpp
-  std_msgs
+add_rscp_node(arm_disarm
+  src/arm_disarm.cpp
 )
 
-target_include_directories(hm PRIVATE
-  ${Protobuf_INCLUDE_DIRS}
-  ${CMAKE_CURRENT_SOURCE_DIR}/src
+add_rscp_node(search_area
+  src/search_area.cpp
 )
 
-target_link_libraries(hm
-  protobuf::libprotobuf
+# Rover Response/Event Nodes
+add_rscp_node(gps_coordinate
+  src/gps_coordinate.cpp
 )
 
-# ===========================
-# Install
-# ===========================
+add_rscp_node(task_completed
+  src/task_completed.cpp
+)
+
+# Install executables
 install(TARGETS
-  stage_pub
+  cm
   hm
+  stage_node
+  arm_disarm
+  search_area
+  gps_coordinate
+  task_completed
   DESTINATION lib/${PROJECT_NAME}
+)
+
+# Install launch files
+install(
+  DIRECTORY launch
+  DESTINATION share/${PROJECT_NAME}
 )
 
 ament_package()
