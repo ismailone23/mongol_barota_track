@@ -1,9 +1,8 @@
 #include "rclcpp/rclcpp.hpp"
-#include "std_msgs/msg/byte_multi_array.hpp"
 #include "std_msgs/msg/string.hpp"
-#include "rscp.pb.h"
+#include "std_msgs/msg/u_int32.hpp"
 
-#include <string>
+#include <cstdint>
 
 class StageNode : public rclcpp::Node
 {
@@ -11,8 +10,8 @@ public:
     StageNode() : Node("stage_node")
     {
         stage_sub_ =
-            create_subscription<std_msgs::msg::ByteMultiArray>(
-                "/Stage",
+            create_subscription<std_msgs::msg::UInt32>(
+                "/SetStage",
                 10,
                 std::bind(
                     &StageNode::callback,
@@ -27,37 +26,16 @@ public:
 
 private:
     void callback(
-        const std_msgs::msg::ByteMultiArray::SharedPtr msg)
+        const std_msgs::msg::UInt32::SharedPtr msg)
     {
-        std::string command(msg->data.begin(), msg->data.end());
+        current_stage_ = msg->data;
 
-        if (command.rfind("SetStage(", 0) != 0)
-        {
-            RCLCPP_WARN(get_logger(), "Invalid SetStage command");
-            return;
-        }
+        RCLCPP_INFO(
+            get_logger(),
+            "Stage set to %u",
+            current_stage_);
 
-        try
-        {
-            const auto start = command.find('(');
-            const auto end = command.find(')');
-
-            uint32_t stage = std::stoul(
-                command.substr(start + 1, end - start - 1));
-
-            current_stage_ = stage;
-
-            RCLCPP_INFO(
-                get_logger(),
-                "Stage set to %u",
-                current_stage_);
-
-            send_ack();
-        }
-        catch (...)
-        {
-            RCLCPP_ERROR(get_logger(), "Failed to parse SetStage");
-        }
+        send_ack();
     }
 
     void send_ack()
@@ -72,7 +50,7 @@ private:
 
     uint32_t current_stage_ = 0;
 
-    rclcpp::Subscription<std_msgs::msg::ByteMultiArray>::SharedPtr
+    rclcpp::Subscription<std_msgs::msg::UInt32>::SharedPtr
         stage_sub_;
 
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr

@@ -1,10 +1,6 @@
 #include "rclcpp/rclcpp.hpp"
-#include "std_msgs/msg/byte_multi_array.hpp"
+#include "std_msgs/msg/float64_multi_array.hpp"
 #include "std_msgs/msg/string.hpp"
-#include "rscp.pb.h"
-
-#include <sstream>
-#include <string>
 
 class SearchAreaNode : public rclcpp::Node
 {
@@ -12,7 +8,7 @@ public:
     SearchAreaNode() : Node("search_area_node")
     {
         command_sub_ =
-            create_subscription<std_msgs::msg::ByteMultiArray>(
+            create_subscription<std_msgs::msg::Float64MultiArray>(
                 "/SearchArea",
                 10,
                 std::bind(
@@ -28,54 +24,20 @@ public:
 
 private:
     void callback(
-        const std_msgs::msg::ByteMultiArray::SharedPtr msg)
+        const std_msgs::msg::Float64MultiArray::SharedPtr msg)
     {
-        std::string command(msg->data.begin(), msg->data.end());
-
-        if (command.rfind("SearchArea(", 0) != 0)
+        if (msg->data.size() != 3)
         {
-            RCLCPP_WARN(get_logger(), "Invalid SearchArea command");
+            RCLCPP_WARN(
+                get_logger(),
+                "Invalid SearchArea value count: expected 3, got %zu",
+                msg->data.size());
             return;
         }
 
-        const auto start = command.find('(');
-        const auto end = command.find(')');
-
-        if (start == std::string::npos ||
-            end == std::string::npos)
-        {
-            RCLCPP_WARN(get_logger(), "Malformed SearchArea");
-            return;
-        }
-
-        std::string arguments =
-            command.substr(start + 1, end - start - 1);
-
-        std::stringstream ss(arguments);
-
-        std::string lat_string;
-        std::string lon_string;
-        std::string radius_string;
-
-        if (!std::getline(ss, lat_string, ',') ||
-            !std::getline(ss, lon_string, ',') ||
-            !std::getline(ss, radius_string, ','))
-        {
-            RCLCPP_WARN(get_logger(), "Invalid SearchArea arguments");
-            return;
-        }
-
-        try
-        {
-            latitude_ = std::stod(lat_string);
-            longitude_ = std::stod(lon_string);
-            radius_ = std::stof(radius_string);
-        }
-        catch (...)
-        {
-            RCLCPP_ERROR(get_logger(), "Invalid SearchArea values");
-            return;
-        }
+        latitude_ = msg->data[0];
+        longitude_ = msg->data[1];
+        radius_ = msg->data[2];
 
         RCLCPP_INFO(
             get_logger(),
@@ -101,9 +63,9 @@ private:
 
     double latitude_ = 0.0;
     double longitude_ = 0.0;
-    float radius_ = 0.0F;
+    double radius_ = 0.0;
 
-    rclcpp::Subscription<std_msgs::msg::ByteMultiArray>::SharedPtr
+    rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr
         command_sub_;
 
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr

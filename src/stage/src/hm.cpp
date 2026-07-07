@@ -2,6 +2,7 @@
 #include "std_msgs/msg/byte_multi_array.hpp"
 #include "rscp.pb.h"
 
+#include <functional>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -17,6 +18,15 @@ public:
             create_publisher<std_msgs::msg::ByteMultiArray>(
                 "/hm/request",
                 10);
+
+        response_subscriber_ =
+            create_subscription<std_msgs::msg::ByteMultiArray>(
+                "/hm/response",
+                10,
+                std::bind(
+                    &HM::response_callback,
+                    this,
+                    std::placeholders::_1));
 
         input_thread_ =
             std::thread(&HM::keyboard_loop, this);
@@ -88,12 +98,10 @@ private:
 
                 std::string lat_str;
                 std::string lon_str;
-                std::string alt_str;
                 std::string radius_str;
 
                 if (!std::getline(ss, lat_str, ',') ||
                     !std::getline(ss, lon_str, ',') ||
-                    !std::getline(ss, alt_str, ',') ||
                     !std::getline(ss, radius_str, ','))
                 {
                     std::cout << "Invalid SearchArea arguments\n";
@@ -104,13 +112,11 @@ private:
                 {
                     double latitude = std::stod(lat_str);
                     double longitude = std::stod(lon_str);
-                    float altitude = std::stof(alt_str);
                     float radius = std::stof(radius_str);
 
                     send_search_area(
                         latitude,
                         longitude,
-                        altitude,
                         radius);
                 }
                 catch (const std::exception &e)
@@ -195,7 +201,6 @@ private:
     void send_search_area(
         double latitude,
         double longitude,
-        float altitude,
         float radius)
     {
         rscp::RequestEnvelope request;
@@ -206,7 +211,6 @@ private:
 
         center->set_latitude(latitude);
         center->set_longitude(longitude);
-        center->set_altitude(altitude);
 
         search->set_radius(radius);
 
@@ -214,15 +218,65 @@ private:
 
         RCLCPP_INFO(
             get_logger(),
-            "HM -> CM: SearchArea(lat=%.6f, lon=%.6f, alt=%.2f, radius=%.2f)",
+            "HM -> CM: SearchArea(lat=%.6f, lon=%.6f, radius=%.2f)",
             latitude,
             longitude,
-            altitude,
             radius);
     }
+
+    void response_callback(
+        const std_msgs::msg::ByteMultiArray::SharedPtr message)
+    {
+        if (message->data.empty())
+        {
+            RCLCPP_WARN(get_logger(), "Received empty CM response");
+            return;
+        }
+
+        rscp::ResponseEnvelope response;
+
+        if (!response.ParseFromArray(
+                message->data.data(),
+                static_cast<int>(message->data.size())))
+        {
+            RCLCPP_WARN(get_logger(), "Failed to parse CM response");
+            return;
+        }
+
+        if (response.has_acknowledge())
+        {
+            RCLCPP_INFO(get_logger(), "CM -> HM: Acknowledge");
+            return;
+        }
+
+        if (response.has_task_finished())
+        {
+            RCLCPP_INFO(get_logger(), "CM -> HM: TaskCompleted");
+            return;
+        }
+
+        if (response.has_gps_coordinate())
+        {
+            const auto &gps = response.gps_coordinate();
+
+            RCLCPP_INFO(
+                get_logger(),
+                "CM -> HM: GPSCoordinate(%.6f, %.6f)",
+                gps.latitude(),
+                gps.longitude());
+            return;
+        }
+
+        RCLCPP_WARN(get_logger(), "Unknown CM response");
+    }
+
     rclcpp::Publisher<
         std_msgs::msg::ByteMultiArray>::SharedPtr
         request_publisher_;
+
+    rclcpp::Subscription<
+        std_msgs::msg::ByteMultiArray>::SharedPtr
+        response_subscriber_;
 
     std::thread input_thread_;
 };

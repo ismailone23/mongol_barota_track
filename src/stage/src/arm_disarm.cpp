@@ -1,9 +1,6 @@
 #include "rclcpp/rclcpp.hpp"
-#include "std_msgs/msg/byte_multi_array.hpp"
+#include "std_msgs/msg/bool.hpp"
 #include "std_msgs/msg/string.hpp"
-#include "rscp.pb.h"
-
-#include <string>
 
 class ArmDisarmNode : public rclcpp::Node
 {
@@ -11,7 +8,7 @@ public:
     ArmDisarmNode() : Node("arm_disarm_node")
     {
         command_sub_ =
-            create_subscription<std_msgs::msg::ByteMultiArray>(
+            create_subscription<std_msgs::msg::Bool>(
                 "/ArmDisarm",
                 10,
                 std::bind(
@@ -27,23 +24,9 @@ public:
 
 private:
     void callback(
-        const std_msgs::msg::ByteMultiArray::SharedPtr msg)
+        const std_msgs::msg::Bool::SharedPtr msg)
     {
-        std::string command(msg->data.begin(), msg->data.end());
-
-        if (command == "ArmDisarm(arm=True)")
-        {
-            armed_ = true;
-        }
-        else if (command == "ArmDisarm(arm=False)")
-        {
-            armed_ = false;
-        }
-        else
-        {
-            RCLCPP_WARN(get_logger(), "Invalid ArmDisarm command");
-            return;
-        }
+        armed_ = msg->data;
 
         RCLCPP_INFO(
             get_logger(),
@@ -65,7 +48,7 @@ private:
 
     bool armed_ = false;
 
-    rclcpp::Subscription<std_msgs::msg::ByteMultiArray>::SharedPtr
+    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr
         command_sub_;
 
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr

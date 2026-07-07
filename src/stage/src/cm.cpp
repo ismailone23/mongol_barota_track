@@ -1,6 +1,9 @@
 #include "rclcpp/rclcpp.hpp"
+#include "std_msgs/msg/bool.hpp"
 #include "std_msgs/msg/byte_multi_array.hpp"
+#include "std_msgs/msg/float64_multi_array.hpp"
 #include "std_msgs/msg/string.hpp"
+#include "std_msgs/msg/u_int32.hpp"
 #include "rscp.pb.h"
 
 #include <cstdint>
@@ -21,18 +24,24 @@ public:
                     &CM::hm_request_callback,
                     this,
                     std::placeholders::_1));
-        stage_publisher_ =
+
+        hm_response_publisher_ =
             create_publisher<std_msgs::msg::ByteMultiArray>(
-                "/Stage",
+                "/hm/response",
+                10);
+
+        stage_publisher_ =
+            create_publisher<std_msgs::msg::UInt32>(
+                "/SetStage",
                 10);
 
         arm_disarm_publisher_ =
-            create_publisher<std_msgs::msg::ByteMultiArray>(
+            create_publisher<std_msgs::msg::Bool>(
                 "/ArmDisarm",
                 10);
 
         search_area_publisher_ =
-            create_publisher<std_msgs::msg::ByteMultiArray>(
+            create_publisher<std_msgs::msg::Float64MultiArray>(
                 "/SearchArea",
                 10);
 
@@ -167,24 +176,19 @@ private:
         const uint32_t stage =
             request.set_stage().value();
 
-        const std::string command =
-            "SetStage(" +
-            std::to_string(stage) +
-            ")";
+        RCLCPP_INFO(
+            get_logger(),
+            "HM -> CM: SetStage(%u)",
+            stage);
+
+        std_msgs::msg::UInt32 message;
+        message.data = stage;
+        stage_publisher_->publish(message);
 
         RCLCPP_INFO(
             get_logger(),
-            "HM -> CM: %s",
-            command.c_str());
-
-        publish_raw_command(
-            stage_publisher_,
-            command);
-
-        RCLCPP_INFO(
-            get_logger(),
-            "CM -> Rover: %s",
-            command.c_str());
+            "CM -> Rover: /SetStage=%u",
+            stage);
     }
 
     void process_arm_disarm(
@@ -193,24 +197,19 @@ private:
         const bool arm =
             request.arm_disarm().value();
 
-        const std::string command =
-            arm
-                ? "ArmDisarm(arm=True)"
-                : "ArmDisarm(arm=False)";
+        RCLCPP_INFO(
+            get_logger(),
+            "HM -> CM: ArmDisarm(arm=%s)",
+            arm ? "True" : "False");
+
+        std_msgs::msg::Bool message;
+        message.data = arm;
+        arm_disarm_publisher_->publish(message);
 
         RCLCPP_INFO(
             get_logger(),
-            "HM -> CM: %s",
-            command.c_str());
-
-        publish_raw_command(
-            arm_disarm_publisher_,
-            command);
-
-        RCLCPP_INFO(
-            get_logger(),
-            "CM -> Rover: %s",
-            command.c_str());
+            "CM -> Rover: /ArmDisarm=%s",
+            arm ? "true" : "false");
     }
 
     void process_search_area(
@@ -230,42 +229,28 @@ private:
 
         const double latitude = center.latitude();
         const double longitude = center.longitude();
-        const float altitude = center.altitude();
         const float radius = search.radius();
 
-        const std::string command =
-            "SearchArea(" +
-            std::to_string(latitude) + "," +
-            std::to_string(longitude) + "," +
-            std::to_string(altitude) + "," +
-            std::to_string(radius) + ")";
+        RCLCPP_INFO(
+            get_logger(),
+            "HM -> CM: SearchArea(lat=%.6f, lon=%.6f, radius=%.2f)",
+            latitude,
+            longitude,
+            radius);
+
+        std_msgs::msg::Float64MultiArray message;
+        message.data = {
+            latitude,
+            longitude,
+            static_cast<double>(radius)};
+        search_area_publisher_->publish(message);
 
         RCLCPP_INFO(
             get_logger(),
-            "HM -> CM: %s",
-            command.c_str());
-
-        publish_raw_command(
-            search_area_publisher_,
-            command);
-
-        RCLCPP_INFO(
-            get_logger(),
-            "CM -> Rover: %s",
-            command.c_str());
-    }
-    void publish_raw_command(
-        const rclcpp::Publisher<
-            std_msgs::msg::ByteMultiArray>::SharedPtr &publisher,
-        const std::string &command)
-    {
-        std_msgs::msg::ByteMultiArray message;
-
-        message.data.assign(
-            command.begin(),
-            command.end());
-
-        publisher->publish(message);
+            "CM -> Rover: /SearchArea=[%.6f, %.6f, %.2f]",
+            latitude,
+            longitude,
+            radius);
     }
 
     void acknowledge_callback(
@@ -396,7 +381,16 @@ private:
         const uint8_t *data,
         std::size_t size)
     {
-        (void)data;
+        if (data == nullptr || size == 0)
+        {
+            RCLCPP_WARN(get_logger(), "Empty response buffer for HM");
+            return;
+        }
+
+        std_msgs::msg::ByteMultiArray message;
+        message.data.assign(data, data + size);
+
+        hm_response_publisher_->publish(message);
 
         RCLCPP_INFO(
             get_logger(),
@@ -406,14 +400,18 @@ private:
 
     rclcpp::Publisher<
         std_msgs::msg::ByteMultiArray>::SharedPtr
+        hm_response_publisher_;
+
+    rclcpp::Publisher<
+        std_msgs::msg::UInt32>::SharedPtr
         stage_publisher_;
 
     rclcpp::Publisher<
-        std_msgs::msg::ByteMultiArray>::SharedPtr
+        std_msgs::msg::Bool>::SharedPtr
         arm_disarm_publisher_;
 
     rclcpp::Publisher<
-        std_msgs::msg::ByteMultiArray>::SharedPtr
+        std_msgs::msg::Float64MultiArray>::SharedPtr
         search_area_publisher_;
 
     rclcpp::Subscription<
