@@ -1,4 +1,5 @@
-## only the `src/rscpcoms` is used for the arc/rscp 
+## stage is the hm-> cm command line
+## only the `src/rscp` is used for the arc/rscp 
 
 we need only the header and the cpp file of rscp.
 
